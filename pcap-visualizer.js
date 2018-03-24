@@ -91,7 +91,7 @@ async function initializeGraph(graphData) {
 			.force("charge", repelForce)
 			.force("link", d3.forceLink()
 				.id(function(d) { return d.id; }) // link id
-				.distance(100)
+				.distance(500)
 				.strength(0.5))
 			.force("center", d3.forceCenter(width/2, height/2));
 
@@ -197,7 +197,9 @@ async function animatePacket(src_ip, dst_ip, latency) {
 
 function replayPCAP(packets) {
 	for(let i = 0, p = Promise.resolve(); i < packets.length; i++) {
+		if(packets[i]._source.layers.ip == undefined) {continue;}
 		p = p.then( () => {
+
 			let myPromises = []
 
 			updatePacketInfo(packets[i]);
@@ -210,10 +212,10 @@ function replayPCAP(packets) {
 
 			return Promise.all(myPromises);
 		})
-		.catch( (error) => {
-			console.log("Packet " + i + " failed to send.");
-			throw error;
-		});
+		// .catch( (error) => {
+		// 	console.log("Packet " + i + " failed to send.");
+		// 	throw error;
+		// });
 	}
 }
 
@@ -221,14 +223,14 @@ function replayPCAP(packets) {
 
 /* Initialize canvas and make things go*/
 
-var width = 600;
-var height = 600;
+var width = 1000;
+var height = 1000;
 
 var svg = d3.select("body").append("svg")
 	.attr("width", width)
 	.attr("height", height)
 
-d3.json("http://localhost:8080/binary/attack-trace.json").then( (jsonData) => {
+d3.json("http://localhost:8080/binary/wannacry.json").then( (jsonData) => {
 	initializeGraph(toGraphData(jsonData)).then( () => {
 		return replayPCAP(jsonData);
 	});
