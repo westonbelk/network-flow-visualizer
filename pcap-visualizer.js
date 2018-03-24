@@ -7,6 +7,9 @@ function getRandomInt(max) {
 }
 
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 
 function getIdByIp(ip) {
@@ -28,14 +31,19 @@ function toGraphData(raw_data) {
 	for (let packet of raw_data) {
 		if(packet._source.layers.ip == undefined) {continue;}
 
-		let new_link = {"source": packet._source.layers.ip["ip.src"],
-			"target": packet._source.layers.ip["ip.dst"],
-			"weight": 8};
+		let new_link = {
+			"group": "edges",
+			"data": {
+				"id": packet._source.layers.ip["ip.src"]+packet._source.layers.ip["ip.dst"],
+				"source": packet._source.layers.ip["ip.src"],
+				"target": packet._source.layers.ip["ip.dst"],
+			}
+		};
 		
 		let found = false;
 		for(let link of graph_data.links) {
-			if( (new_link.source == link.source && new_link.target == link.target) ||
-				(new_link.source == link.target && new_link.target == link.source)) {
+			if( (new_link.data.source == link.data.source && new_link.data.target == link.data.target) ||
+				(new_link.data.source == link.data.target && new_link.data.target == link.data.source)) {
 				found = true;
 				break;
 			}
@@ -44,8 +52,8 @@ function toGraphData(raw_data) {
 		if(!found) {
 			graph_data.links.push(new_link);
 
-			let new_node1 = {"id": new_link.source, "group": 1};
-			let new_node2 = {"id": new_link.target, "group": 1};
+			let new_node1 = {"group": "nodes", data: {"id": new_link.data.source}};
+			let new_node2 = {"group": "nodes", data: {"id": new_link.data.target}};
 
 			found = false;
 			for(let node of graph_data.nodes) {
@@ -77,87 +85,39 @@ function toGraphData(raw_data) {
 
 
 
-async function initializeGraph(graphData) {
-	return new Promise((resolve, reject) => {
+function initializeGraph(graphData) {
+	cy = window.cy = cytoscape({
 
-		var color = d3.scaleOrdinal(d3.schemeCategory10);
+		container: document.getElementById('cy'), // container to render in
 
-		var repelForce = d3.forceManyBody();
-		repelForce.strength = function() {return 100};
+		elements: graphData.nodes.concat(graphData.links),
 
-		// .strength(-100).distanceMax(200).distanceMin(100);
+		layout: {
+			name: 'circle'
+		},
 
-		var simulation = d3.forceSimulation()
-			.force("charge", repelForce)
-			.force("link", d3.forceLink()
-				.id(function(d) { return d.id; }) // link id
-				.distance(500)
-				.strength(0.5))
-			.force("center", d3.forceCenter(width/2, height/2));
+		style: [
+			{
+				selector: 'node',
+				style: {
+					'height': 20,
+					'width': 20,
+					'background-color': '#e8e406'
+				}
+			},
 
-		var link = svg.append("g")
-			.attr("class", "links")
-			.selectAll("line")
-			.data(graphData.links)
-			.enter().append("line")
-				.attr("stroke", "#bbb")
-				.attr("stroke-width", function(d) {return Math.sqrt(d.weight);})
+			{
+				selector: 'edge',
+				style: {
+					'curve-style': 'haystack',
+					'haystack-radius': 0,
+					'width': 5,
+					'opacity': 0.5,
+					'line-color': '#f2f08c'
+				}
+			}
+		],
 
-		var node = svg.append("g")
-			.attr("class", "nodes")
-			.selectAll("circle")
-			.data(graphData.nodes)
-			.enter().append("circle")
-				.attr("r", 15)
-				.attr("id", function(d) { return getIdByIp(d.id);})
-				.attr("fill", function(d) {return color(d.group);})
-				.call(d3.drag()
-					.on("start", dragstarted)
-					.on("drag", dragged)
-					.on("end", dragended));
-
-		node.append("title")
-			.text(function(d) {return d.id;})
-
-		// Add nodes and links
-
-		simulation
-			.nodes(graphData.nodes)
-			.on("tick", ticked)
-			.on("end", resolve);
-
-		simulation.force("link")
-			.links(graphData.links);
-
-		function ticked() {
-			link
-				.attr("x1", function(d) { return d.source.x; })
-				.attr("y1", function(d) { return d.source.y; })
-				.attr("x2", function(d) { return d.target.x; })
-				.attr("y2", function(d) { return d.target.y; });
-
-			node
-				.attr("cx", function(d) { return d.x; })
-				.attr("cy", function(d) { return d.y; });
-		}
-
-
-		function dragstarted(d) {
-		  if (!d3.event.active) simulation.alphaTarget(0.3).restart();
-		  d.fx = d.x;
-		  d.fy = d.y;
-		}
-
-		function dragged(d) {
-		  d.fx = d3.event.x;
-		  d.fy = d3.event.y;
-		}
-
-		function dragended(d) {
-		  if (!d3.event.active) simulation.alphaTarget(0);
-		  d.fx = null;
-		  d.fy = null;
-		}
 	});
 }
 
@@ -173,23 +133,24 @@ function updatePacketInfo(packet) {
 
 async function animatePacket(src_ip, dst_ip, latency) {
 	return new Promise((resolve, reject) => {
-		var src_node = getNodeByIp(src_ip);
-		var dst_node = getNodeByIp(dst_ip);
 
-		var circle = svg.append("circle")
-			.attr("id", "sentPacket")
-			.attr("fill", "red")
-			.attr("r", 5)
-			.attr("cx", src_node.attr("cx"))
-			.attr("cy", src_node.attr("cy"));
+		let src_node = cy.getElementById(src_ip);
+		let dst_node = cy.getElementById(dst_ip);
 
-		circle
-			.transition()
-			.duration(latency)
-			.attr("cx", dst_node.attr("cx"))
-			.attr("cy", dst_node.attr("cy"))
-			.remove()
-			.on('end', resolve);
+		let packet_node = cy.add({
+			"group": "nodes",
+			"data": {"id": "packet"},
+			"position": {x: src_node._private.position.x+5, y: src_node._private.position.y+5}
+		});
+
+		sleep(2000).then( _ => {
+			cy.remove(packet_node);
+			resolve();
+		});
+
+		
+
+		
 	});
 }
 
@@ -212,10 +173,6 @@ function replayPCAP(packets) {
 
 			return Promise.all(myPromises);
 		})
-		// .catch( (error) => {
-		// 	console.log("Packet " + i + " failed to send.");
-		// 	throw error;
-		// });
 	}
 }
 
@@ -226,20 +183,9 @@ function replayPCAP(packets) {
 var width = 1000;
 var height = 1000;
 
-var svg = d3.select("body").append("svg")
-	.attr("width", width)
-	.attr("height", height)
-
-d3.json("http://localhost:8080/binary/wannacry.json").then( (jsonData) => {
-	initializeGraph(toGraphData(jsonData)).then( () => {
-		return replayPCAP(jsonData);
-	});
+d3.json("http://localhost:8080/binary/attack-trace.json").then( (jsonData) => {
+	initializeGraph(toGraphData(jsonData));
+	replayPCAP(jsonData);
 });
-
-
-
-
-
-
 
 
