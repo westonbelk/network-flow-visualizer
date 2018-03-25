@@ -134,29 +134,31 @@ function updatePacketInfo(packet) {
 async function animatePacket(src_ip, dst_ip, latency) {
 	return new Promise((resolve, reject) => {
 
+		let cleanup = function() {
+			cy.remove(packet_node);
+			resolve();
+		}
+
 		let src_node = cy.getElementById(src_ip);
 		let dst_node = cy.getElementById(dst_ip);
 
 		let packet_node = cy.add({
 			"group": "nodes",
-			"data": {"id": "packet"},
-			"position": {x: src_node._private.position.x+5, y: src_node._private.position.y+5}
+			"data": {"id": "packet" + (new Date).getTime()},
+			"position": {x: src_node._private.position.x, y: src_node._private.position.y},
 		});
-
-		sleep(2000).then( _ => {
-			cy.remove(packet_node);
-			resolve();
+		
+		packet_node.animate({
+			"position": {x: dst_node._private.position.x, y: dst_node._private.position.y},
+			"duration": latency,
+			"complete": cleanup
 		});
-
-		
-
-		
 	});
 }
 
 
 
-function replayPCAP(packets) {
+async function replayPCAP(packets) {
 	for(let i = 0, p = Promise.resolve(); i < packets.length; i++) {
 		if(packets[i]._source.layers.ip == undefined) {continue;}
 		p = p.then( () => {
@@ -183,7 +185,7 @@ function replayPCAP(packets) {
 var width = 1000;
 var height = 1000;
 
-d3.json("http://localhost:8080/binary/attack-trace.json").then( (jsonData) => {
+d3.json("http://localhost:8080/binary/sample3.json").then( (jsonData) => {
 	initializeGraph(toGraphData(jsonData));
 	replayPCAP(jsonData);
 });
