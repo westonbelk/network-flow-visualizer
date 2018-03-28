@@ -118,7 +118,7 @@ function initializeGraph(graphData) {
 			}
 		],
 
-	});
+	});,
 }
 
 
@@ -145,6 +145,9 @@ async function animatePacket(src_ip, dst_ip, latency) {
 		let packet_node = cy.add({
 			"group": "nodes",
 			"data": {"id": "packet" + (new Date).getTime()},
+			"style": {
+				"background-color": "#f000ff",
+			},
 			"position": {x: src_node._private.position.x, y: src_node._private.position.y},
 		});
 		
@@ -182,10 +185,7 @@ async function replayPCAP(packets) {
 
 /* Initialize canvas and make things go*/
 
-var width = 1000;
-var height = 1000;
-
-d3.json("http://localhost:8080/binary/sample3.json").then( (jsonData) => {
+d3.json("http://localhost:8080/binary/wannacry.json").then( (jsonData) => {
 	initializeGraph(toGraphData(jsonData));
 	replayPCAP(jsonData);
 });

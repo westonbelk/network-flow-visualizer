@@ -2,6 +2,11 @@
 body {
   font-family: helvetica;
   font-size: 14px;
+  background-color: black;
+}
+
+#packetinfo {
+  color: white;
 }
 
 #cy {
