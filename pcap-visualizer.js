@@ -118,7 +118,7 @@ function initializeGraph(graphData) {
 			}
 		],
 
-	});,
+	});
 }
 
 
